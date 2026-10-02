@@ -39,6 +39,7 @@ test("TMDB image gateway policy", async (t) => {
   assert.equal(image.headers.get("Set-Cookie"), null);
   assert.equal(image.headers.get("ETag"), '"image-1"');
   assert.equal(image.headers.get("Accept-Ranges"), "bytes");
+  assert.match(image.headers.get("Server-Timing"), /^origin_headers;dur=\d+$/);
   assert.match(image.headers.get("Cache-Control"), /max-age=2592000/);
   assert.match(image.headers.get("Cloudflare-CDN-Cache-Control"), /stale-if-error=604800/);
   assert.equal(calls[0].url, "https://image.tmdb.org" + path);

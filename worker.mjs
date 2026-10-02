@@ -6,7 +6,7 @@ const IMAGE_PATH = /^\/t\/p\/(?:original|w45|w92|w154|w185|w300|w342|w500|w780|w
 function headers() {
   return new Headers({
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Expose-Headers": "ETag, Age, CF-Cache-Status, X-TMDB-Proxy",
+    "Access-Control-Expose-Headers": "ETag, Age, CF-Cache-Status, X-TMDB-Proxy, Server-Timing",
     "Cache-Control": "no-store",
     "Cloudflare-CDN-Cache-Control": "no-store",
     "X-Content-Type-Options": "nosniff",
@@ -74,6 +74,7 @@ export default {
       return reply(request, null, 308, { Location: url.href });
     }
 
+    const upstreamStarted = Date.now();
     let response;
     try {
       response = await upstream(request, url.pathname);
@@ -82,6 +83,7 @@ export default {
       return reply(request, "TMDB temporarily unavailable", 502);
     }
 
+    const upstreamHeadersMs = Date.now() - upstreamStarted;
     if (response.status === 404) {
       await response.body?.cancel();
       return reply(request, "Image not found", 404, {
@@ -104,6 +106,9 @@ export default {
     }
     h.set("Cache-Control", `public, max-age=${CLIENT_TTL}`);
     h.set("Cloudflare-CDN-Cache-Control", EDGE_POLICY);
+    // Stored with the image: on a cache HIT this describes the original fill,
+    // not this request. Does not include the streamed body or client connection.
+    h.set("Server-Timing", `origin_headers;dur=${upstreamHeadersMs}`);
     return new Response(request.method === "HEAD" || response.status === 304 ? null : response.body, {
       status: response.status,
       headers: h,

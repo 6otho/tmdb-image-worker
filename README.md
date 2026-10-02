@@ -117,6 +117,10 @@ npm run smoke -- https://images.example.com
 
 缓存减少回源开销，无法消除用户到 Cloudflare 的线路延迟。不同地区、运营商、时段和缓存状态的结果可能不同。请在自己的网络比较同一张图片，不能只看根路径健康检查。
 
+图片响应带有 `Server-Timing: origin_headers;dur=毫秒数`，表示 Worker 从开始回源到收到上游响应头的耗时，包含可能的重试。它不包含客户端 DNS、连接、TLS 和图片正文传输；不能拿它当完整回源下载时间。缓存命中时，此值是当初填充缓存时保存的历史值。
+
+排查首次大图加载可结合 `curl -o /dev/null -D - -w '\nconnect=%{time_connect} tls=%{time_appconnect} first_byte=%{time_starttransfer} total=%{time_total}\n' 'https://你的域名/t/p/original/文件名.jpg'`。这些 curl 时间的单位是秒；首次请求和复测分别记录 `CF-Cache-Status`，不要仅凭一次 MISS 与一次 HIT 的总耗时就把线路波动归因于回源。
+
 **根路径正常，图片却返回 502？**
 
 根路径不访问 TMDB。检查 Worker 日志和图片路径；回源超时、异常重定向、非图片响应等都会返回 502。429 表示上游限流，应遵守 Retry-After，避免立即连续重试。
