@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import worker from "./worker.mjs";
 
 const path = "/t/p/w500/1E5baAaEse26fej7uHcjOgEE2t2.jpg";
 const request = (suffix = path, init) => new Request("https://images.example.com" + suffix, init);
 
 test("TMDB image gateway policy", async (t) => {
+  // Free accounts enforce their own CPU limit and reject custom CPU tuning.
+  const config = JSON.parse(readFileSync(new URL("./wrangler.jsonc", import.meta.url), "utf8"));
+  assert.equal(config.limits?.cpu_ms, undefined);
   const calls = [];
   const responses = [];
   t.mock.method(globalThis, "fetch", async (url, init) => {
@@ -72,4 +76,19 @@ test("TMDB image gateway policy", async (t) => {
   assert.equal(unavailable.status, 502);
   assert.equal(unavailable.headers.get("Cache-Control"), "no-store");
   assert.equal(responses.length, 0);
+});
+
+test("returns an unfinished upstream stream without buffering the image", { timeout: 1000 }, async (t) => {
+  const stream = new ReadableStream({
+    start(controller) { controller.enqueue(new Uint8Array([0xff, 0xd8])); },
+  });
+  const origin = new Response(stream, { headers: { "Content-Type": "image/jpeg" } });
+  const fetch = t.mock.method(globalThis, "fetch", async () => origin);
+  const result = await worker.fetch(request());
+  assert.equal(result.status, 200);
+  assert.equal(result.body, origin.body);
+  assert.equal(fetch.mock.callCount(), 1);
+  const reader = result.body.getReader();
+  assert.deepEqual((await reader.read()).value, new Uint8Array([0xff, 0xd8]));
+  await reader.cancel();
 });

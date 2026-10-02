@@ -5,7 +5,7 @@
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2Fliixing%2Ftmdb-image-worker)
 [![Test](https://github.com/liixing/tmdb-image-worker/actions/workflows/test.yml/badge.svg)](https://github.com/liixing/tmdb-image-worker/actions/workflows/test.yml)
 
-**每个人使用自己的账号、额度和域名。本项目不提供公共代理服务，也不保证任何地区一定可达或比 TMDB 原站更快。**
+**面向 Workers 免费套餐：每个人使用自己的账号、额度和域名。** 本项目不提供公共代理服务，也不保证任何地区一定可达或比 TMDB 原站更快。
 
 ## 快速部署
 
@@ -83,7 +83,7 @@ npm run smoke -- https://images.example.com
 - 保留 ETag、Last-Modified、Accept-Ranges，支持 HEAD、条件请求及平台对完整缓存图片的 Range 处理。
 - 固定上游 `image.tmdb.org`，限制尺寸、文件名和扩展名；不接受任意目标 URL，不转发 Cookie 或 Authorization。
 - query 参数通过 308 重定向移除。客户端直接使用无 query URL 可避免额外请求。
-- 部署新版本默认隔离旧缓存，首次访问可能重新回源。`CF-Cache-Status` 由平台提供。
+- 开启 `cross_version_cache`，更新 Worker 后复用尚有效的缓存，减少重新回源。修改响应内容、安全策略或缓存规则时，需要主动清除 Worker 缓存，或关闭此选项后部署，让新策略立即生效。`CF-Cache-Status` 由平台提供。
 
 支持尺寸：`original`、`w45`、`w92`、`w154`、`w185`、`w300`、`w342`、`w500`、`w780`、`w1280`、`h632`。具体图片能否使用某个尺寸由 TMDB 决定；非法路径返回 404。
 
@@ -96,9 +96,20 @@ npm run smoke -- https://images.example.com
 | Workers Free | 每天 100,000 次 | 账号内共享；超限会影响服务，不是无限请求 |
 | Workers Paid | 每月 $5 起，包含 1,000 万次 | 超出每百万次 $0.30；CPU 超额另计，$5 不是封顶 |
 
-**Cloudflare 缓存命中仍占请求额度；原生缓存命中不消耗 Worker CPU。** App 本地缓存直接显示图片、没有发网络请求时，不产生 Cloudflare 请求。详见 [Workers Cache 计费](https://developers.cloudflare.com/workers/cache/#pricing)。本项目设置的 10 ms CPU 上限也不是月账单上限。
+**Cloudflare 缓存命中仍占请求额度；原生缓存命中不消耗 Worker CPU。** App 本地缓存直接显示图片、没有发网络请求时，不产生 Cloudflare 请求。详见 [Workers Cache 计费](https://developers.cloudflare.com/workers/cache/#pricing)。模板不设置仅供付费套餐调整的 `limits.cpu_ms`；免费套餐由平台执行每次请求 10 ms CPU 限制，等待网络不计入 CPU 时间。付费账号部署本项目仍沿用付费账号的计费规则。
 
 部署地址默认公开，知道地址的人可以请求允许的 TMDB 图片；CORS 不等于访问权限控制。自用时不要把个人地址当作公共图片源推广。
+
+### 免费额度内的速度
+
+原生 Workers Cache [对所有套餐开放](https://blog.cloudflare.com/workers-cache/)，包含分层缓存；本项目不需要付费图片转换、数据库或额外 Worker 转发。
+
+- 缓存命中直接在边缘返回，跳过 JavaScript 和 TMDB 回源。
+- 未命中时直接流式返回，收到图片数据即可向客户端传输，不等待整张图片下载完，也不解码、压缩或做像素处理。
+- 同一路径固定使用合适的尺寸：小海报通常使用 `w342` 或 `w500`，避免列表全部下载 `original`。Worker 保留客户端请求的尺寸，不能替客户端决定画质。
+- 客户端使用 HTTPS 和不带 query 的图片地址，保留本地缓存；不要给 URL 加随机时间戳、每次清缓存或反复测速。
+
+这些措施降低代码开销、重复下载和回源等待，不能改变用户到 Cloudflare 的网络线路。已有线上验证使用付费账号；免费套餐兼容性依据官方功能和限制检查，尚未在独立免费账号实际部署。
 
 ## 常见问题
 
