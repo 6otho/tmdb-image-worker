@@ -137,7 +137,7 @@ npm run smoke -- https://images.example.com M9NWvGZViCg
 
 排查首次大图加载可结合 `curl -o /dev/null -D - -w '\nconnect=%{time_connect} tls=%{time_appconnect} first_byte=%{time_starttransfer} total=%{time_total}\n' 'https://你的域名/t/p/original/文件名.jpg'`。这些 curl 时间的单位是秒；首次请求和复测分别记录 `CF-Cache-Status`，不要仅凭一次 MISS 与一次 HIT 的总耗时就把线路波动归因于回源。
 
-需要为自己的网络比较入口时，见 [IP 优选与 Surge 配置教程](IP-PREFERENCE.md)。先看真实图片完整下载的成功率，再比较速度；保留 HTTPS 域名，不使用全网通用的固定 IP。
+需要为自己的网络比较入口时，见 [IP 优选与测速教程](IP-PREFERENCE.md)。先看真实图片完整下载的成功率，再比较速度。
 
 **流式传输为什么仍会慢或超时？**
 
