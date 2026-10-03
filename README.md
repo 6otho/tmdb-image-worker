@@ -2,9 +2,9 @@
 
 自建 TMDB 图片代理，适用于 Cloudflare Workers 免费套餐。流式返回图片，保留原图画质。
 
-让 AI 代办：把下面这句话发给能操作终端的 AI，它会按 [Skill](skills/tmdb-image-setup/SKILL.md) 完成部署、验证和 IP 优选。
+让 AI 代办：把下面这句话发给能操作终端的 AI，它会按 [Skill](skills/tmdb-image-setup/SKILL.md) 部署、验证，并检查服务端入口优选是否可行。
 
-> 读取 https://github.com/liixing/tmdb-image-worker/blob/main/skills/tmdb-image-setup/SKILL.md ，帮我部署图片 Worker，以不使用 VPN 或代理客户端的方式验证直连、优选并应用入口 IP，最后给我可填入客户端的图片地址。
+> 读取 https://github.com/liixing/tmdb-image-worker/blob/main/skills/tmdb-image-setup/SKILL.md ，帮我部署图片 Worker，验证直连并检查能否在域名服务端应用优选入口；不要修改用户设备的网络配置，最后给我图片地址和实际完成状态。
 
 ## 1. 部署
 
@@ -36,7 +36,7 @@ https://images.example.com/t/p/
 
 ## 3. 优选 IP
 
-在自己的网络下测试，**完整下载成功率优先，再比较速度**。
+以下命令只比较候选入口，**不会让公开域名自动采用该 IP**。普通 Worker 自定义域名不能直接指定入口 IP；服务端生效需要另行验证域名接入方案。测速时完整下载成功率优先，再比较速度。
 
 先查询候选 IP：
 
