@@ -2,6 +2,10 @@
 
 自建 TMDB 图片代理，适用于 Cloudflare Workers 免费套餐。流式返回图片，保留原图画质。
 
+让 AI 代办：把下面这句话发给能操作终端的 AI，它会按 [Skill](skills/tmdb-image-setup/SKILL.md) 完成部署、验证和 IP 优选。
+
+> 读取 https://github.com/liixing/tmdb-image-worker/blob/main/skills/tmdb-image-setup/SKILL.md ，帮我部署图片 Worker，在我当前网络优选并应用入口 IP，最后给我可填入客户端的图片地址。
+
 ## 1. 部署
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2Fliixing%2Ftmdb-image-worker)
