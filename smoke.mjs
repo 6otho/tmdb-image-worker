@@ -48,3 +48,25 @@ for (const missing of ["/api/private", "/t/p/w500/tmdb-worker-missing-check.jpg"
   await response.body?.cancel();
 }
 console.log("PASS: original bytes, bare-origin path, cache hit, HEAD, 304, 206, canonical query, safe 404");
+
+if (process.argv[3]) {
+  const key = process.argv[3];
+  assert.match(key, /^[A-Za-z0-9_-]{1,64}$/);
+  let available = 0;
+  for (const size of ["maxresdefault", "hq720", "mqdefault"]) {
+    const suffix = `/vi/${key}/${size}.jpg`;
+    const original = await get("https://i.ytimg.com" + suffix);
+    const bytes = Buffer.from(await original.arrayBuffer());
+    for (const prefix of ["/youtube", "/t/p/youtube"]) {
+      const image = await get(base + prefix + suffix);
+      assert.equal(image.status, original.status);
+      const received = Buffer.from(await image.arrayBuffer());
+      if (original.status === 200) {
+        assert.equal(hash(received), hash(bytes));
+        available++;
+      }
+    }
+  }
+  assert.ok(available > 0, "video must have at least one available thumbnail");
+  console.log("PASS: YouTube thumbnails match upstream bytes/status through both image prefixes");
+}

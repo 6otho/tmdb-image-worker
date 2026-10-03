@@ -48,6 +48,20 @@ test("TMDB image gateway policy", async (t) => {
   assert.equal(calls[0].init.cache, "no-store");
   assert.equal(calls[0].init.redirect, "manual");
 
+  for (const prefix of ["", "/t/p"]) {
+    for (const size of ["maxresdefault", "hq720", "mqdefault"]) {
+      responses.push(new Response(bytes, { headers: { "Content-Type": "image/jpeg" } }));
+      const thumbnail = await worker.fetch(request(`${prefix}/youtube/vi/abc_-123xyz/${size}.jpg`));
+      assert.equal(thumbnail.status, 200);
+      assert.deepEqual(new Uint8Array(await thumbnail.arrayBuffer()), bytes);
+      assert.equal(calls.at(-1).url, `https://i.ytimg.com/vi/abc_-123xyz/${size}.jpg`);
+      assert.equal(thumbnail.headers.get("Cache-Control"), "public, max-age=86400");
+    }
+  }
+  for (const bad of ["/youtube/vi/a%2fb/maxresdefault.jpg", "/youtube/vi/abc/default.html", "/youtube/https://example.com/x.jpg", "/youtube/vi/abc/maxresdefault.jpg/extra"]) {
+    assert.equal((await worker.fetch(request(bad))).status, 404);
+  }
+
   for (const shortPath of [path.slice(4), "/original/1E5baAaEse26fej7uHcjOgEE2t2.jpg"]) {
     responses.push(new Response(bytes, { headers: { "Content-Type": "image/jpeg" } }));
     const short = await worker.fetch(request(shortPath));

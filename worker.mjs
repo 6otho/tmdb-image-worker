@@ -2,6 +2,7 @@ const ORIGIN = "https://image.tmdb.org";
 const CLIENT_TTL = 30 * 86400;
 const EDGE_POLICY = "public, max-age=7776000, stale-while-revalidate=86400, stale-if-error=604800";
 const IMAGE_PATH = /^\/t\/p\/(?:original|w45|w92|w154|w185|w300|w342|w500|w780|w1280|h632)\/[A-Za-z0-9_-]{1,200}\.(?:jpg|jpeg|png|webp|avif|gif|svg)$/;
+const YOUTUBE_PATH = /^\/t\/p\/youtube(\/vi\/[A-Za-z0-9_-]{1,64}\/(?:maxresdefault|hq720|mqdefault)\.jpg)$/;
 
 function headers() {
   return new Headers({
@@ -21,7 +22,7 @@ function reply(request, text, status, extra = {}) {
   return new Response(request.method === "HEAD" ? null : text, { status, headers: h });
 }
 
-async function upstream(request, pathname) {
+async function upstream(request, target) {
   const h = new Headers();
   for (const name of ["If-None-Match", "If-Modified-Since"]) {
     if (request.headers.has(name)) h.set(name, request.headers.get(name));
@@ -31,7 +32,7 @@ async function upstream(request, pathname) {
     // Bound the wait for headers, not the subsequent streaming of large originals.
     const timer = setTimeout(() => controller.abort(), 4000);
     try {
-      const response = await fetch(ORIGIN + pathname, {
+      const response = await fetch(target, {
         method: request.method,
         headers: h,
         redirect: "manual",
@@ -67,7 +68,9 @@ export default {
     if (url.pathname === "/") return reply(request, "TMDB image worker OK", 200);
     // Clients may append size/file directly to a bare custom image origin.
     const pathname = url.pathname.startsWith("/t/p/") ? url.pathname : "/t/p" + url.pathname;
-    if (!IMAGE_PATH.test(pathname)) return reply(request, "Not Found", 404);
+    const youtube = pathname.match(YOUTUBE_PATH);
+    if (!youtube && !IMAGE_PATH.test(pathname)) return reply(request, "Not Found", 404);
+    const target = youtube ? "https://i.ytimg.com" + youtube[1] : ORIGIN + pathname;
 
     // App URLs already have no query. Canonicalize other callers once so the
     // native cache cannot hold multiple copies of the same image for ?v=... .
@@ -79,7 +82,7 @@ export default {
     const upstreamStarted = Date.now();
     let response;
     try {
-      response = await upstream(request, pathname);
+      response = await upstream(request, target);
     } catch (error) {
       console.warn("TMDB fetch failed", error.name, error.message);
       return reply(request, "TMDB temporarily unavailable", 502);
@@ -106,8 +109,9 @@ export default {
     for (const name of ["Content-Type", "Content-Length", "Content-Encoding", "ETag", "Last-Modified", "Accept-Ranges"]) {
       if (response.headers.has(name)) h.set(name, response.headers.get(name));
     }
-    h.set("Cache-Control", `public, max-age=${CLIENT_TTL}`);
-    h.set("Cloudflare-CDN-Cache-Control", EDGE_POLICY);
+    h.set("Cache-Control", `public, max-age=${youtube ? 86400 : CLIENT_TTL}`);
+    h.set("Cloudflare-CDN-Cache-Control", youtube
+      ? "public, max-age=86400, stale-while-revalidate=3600, stale-if-error=86400" : EDGE_POLICY);
     // Stored with the image: on a cache HIT this describes the original fill,
     // not this request. Does not include the streamed body or client connection.
     h.set("Server-Timing", `origin_headers;dur=${upstreamHeadersMs}`);

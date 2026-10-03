@@ -50,6 +50,17 @@ https://images.example.com/t/p/
 
 其他客户端同样将 `https://image.tmdb.org/t/p/` 替换为你的图片前缀。
 
+### 预告片封面
+
+支持将 YouTube 缩略图 `https://i.ytimg.com/vi/视频ID/maxresdefault.jpg` 改为
+`https://你的域名/youtube/vi/视频ID/maxresdefault.jpg`，带 `/t/p/youtube/vi/…` 的形式也支持。
+只允许 `maxresdefault.jpg`、`hq720.jpg`、`mqdefault.jpg`，不代理视频播放或任意网址。
+图片保持原始字节；YouTube 封面可被作者更新，因此客户端和边缘新鲜期为 1 天。
+原图不存在时保留 404，让客户端按原有顺序尝试下一种封面。
+
+App 需要包含预告片封面路由更新；只升级 Worker 无法接管旧版 App 写死的 `i.ytimg.com` 请求。
+更新后的 EPlayerX 优先用自定义图片地址请求封面，并保留原站作为不支持此入口的第三方代理的后备。
+
 ## 本地部署与检查
 
 需要 Node.js 22 或更新版本及 Git。Worker 无运行时依赖，命令会按需下载固定版本的 Wrangler。
@@ -70,6 +81,9 @@ npm run check:deploy
 
 # 对自己的线上地址检查；只填域名，不带 /t/p/
 npm run smoke -- https://images.example.com
+
+# 可选：附上一个真实 YouTube 视频 ID，同时验证预告片封面
+npm run smoke -- https://images.example.com M9NWvGZViCg
 ```
 
 线上检查会访问 TMDB 原站和你的 Worker，比对图片字节，并验证缓存 HIT、HEAD、304、Range/206、query 重定向及 404。执行机器需要能访问原站；测试会产生少量真实请求。离线测试不需要账号或网络。
@@ -83,7 +97,7 @@ npm run smoke -- https://images.example.com
 - 404：边缘短缓存 60 秒、客户端不缓存；其他错误响应不存入缓存。过期旧图的实际使用仍取决于平台是否保有可用副本。
 - 回源等待响应头最多 4 秒，网络异常或 502/503/504 最多重试一次；这个超时不限制收到响应头之后的图片传输时间。
 - 保留 ETag、Last-Modified、Accept-Ranges，支持 HEAD、条件请求及平台对完整缓存图片的 Range 处理。
-- 固定上游 `image.tmdb.org`，限制尺寸、文件名和扩展名；不接受任意目标 URL，不转发 Cookie 或 Authorization。
+- 固定上游 `image.tmdb.org` 和缩略图入口 `i.ytimg.com/vi/`，限制路径、尺寸、文件名和扩展名；不接受任意目标 URL，不转发 Cookie 或 Authorization。
 - query 参数通过 308 重定向移除。客户端直接使用无 query URL 可避免额外请求。
 - 开启 `cross_version_cache`，更新 Worker 后复用尚有效的缓存，减少重新回源。修改响应内容、安全策略或缓存规则时，需要主动清除 Worker 缓存，或关闭此选项后部署，让新策略立即生效。`CF-Cache-Status` 由平台提供。
 
