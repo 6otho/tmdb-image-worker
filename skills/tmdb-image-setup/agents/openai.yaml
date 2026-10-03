@@ -1,4 +1,4 @@
 interface:
   display_name: "TMDB 图片自动部署与优选"
   short_description: "自动部署自建图片 Worker、验证原图并优选当前网络入口"
-  default_prompt: "使用 $tmdb-image-setup 完成图片 Worker 部署、验证和 IP 优选，给我可填入客户端的实测最快可用地址。"
+  default_prompt: "使用 $tmdb-image-setup 在无需 VPN 或代理客户端的条件下完成图片 Worker 部署、直连验证和 IP 优选，给我可填入客户端的实测最快可用地址。"

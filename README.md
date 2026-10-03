@@ -4,7 +4,7 @@
 
 让 AI 代办：把下面这句话发给能操作终端的 AI，它会按 [Skill](skills/tmdb-image-setup/SKILL.md) 完成部署、验证和 IP 优选。
 
-> 读取 https://github.com/liixing/tmdb-image-worker/blob/main/skills/tmdb-image-setup/SKILL.md ，帮我部署图片 Worker，在我当前网络优选并应用入口 IP，最后给我可填入客户端的图片地址。
+> 读取 https://github.com/liixing/tmdb-image-worker/blob/main/skills/tmdb-image-setup/SKILL.md ，帮我部署图片 Worker，以不使用 VPN 或代理客户端的方式验证直连、优选并应用入口 IP，最后给我可填入客户端的图片地址。
 
 ## 1. 部署
 
