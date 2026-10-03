@@ -65,7 +65,9 @@ export default {
     }
     const url = new URL(request.url);
     if (url.pathname === "/") return reply(request, "TMDB image worker OK", 200);
-    if (!IMAGE_PATH.test(url.pathname)) return reply(request, "Not Found", 404);
+    // Clients may append size/file directly to a bare custom image origin.
+    const pathname = url.pathname.startsWith("/t/p/") ? url.pathname : "/t/p" + url.pathname;
+    if (!IMAGE_PATH.test(pathname)) return reply(request, "Not Found", 404);
 
     // App URLs already have no query. Canonicalize other callers once so the
     // native cache cannot hold multiple copies of the same image for ?v=... .
@@ -77,7 +79,7 @@ export default {
     const upstreamStarted = Date.now();
     let response;
     try {
-      response = await upstream(request, url.pathname);
+      response = await upstream(request, pathname);
     } catch (error) {
       console.warn("TMDB fetch failed", error.name, error.message);
       return reply(request, "TMDB temporarily unavailable", 502);

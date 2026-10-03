@@ -27,6 +27,9 @@ for (let i = 0; i < 3; i++) {
 }
 assert.ok(hit, "expected a native cache hit on repeated requests");
 assert.ok(etag);
+const short = await get(base + path.slice(4), { redirect: "manual" });
+assert.equal(short.status, 200);
+assert.equal(hash(Buffer.from(await short.arrayBuffer())), hash(expected));
 const head = await get(base + path, { method: "HEAD" });
 assert.equal(head.status, 200);
 assert.equal(await head.text(), "");
@@ -44,4 +47,4 @@ for (const missing of ["/api/private", "/t/p/w500/tmdb-worker-missing-check.jpg"
   assert.equal(response.headers.get("cache-control"), "no-store");
   await response.body?.cancel();
 }
-console.log("PASS: original bytes, cache hit, HEAD, 304, 206, canonical query, safe 404");
+console.log("PASS: original bytes, bare-origin path, cache hit, HEAD, 304, 206, canonical query, safe 404");

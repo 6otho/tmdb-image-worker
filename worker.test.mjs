@@ -20,7 +20,7 @@ test("TMDB image gateway policy", async (t) => {
     return response;
   });
 
-  for (const bad of ["/api/3/movie/1", "/t/p/w999/a.jpg", "/t/p/w500/a%2fb.jpg", "/t/p/w500/a.html"]) {
+  for (const bad of ["/api/3/movie/1", "/t/p/w999/a.jpg", "/t/p/w500/a%2fb.jpg", "/t/p/w500/a.html", "/w999/a.jpg", "/w500/a%2fb.jpg", "/w500/a.html"]) {
     assert.equal((await worker.fetch(request(bad))).status, 404);
   }
   assert.equal((await worker.fetch(request(path, { method: "POST" }))).status, 405);
@@ -47,6 +47,15 @@ test("TMDB image gateway policy", async (t) => {
   assert.equal(calls[0].init.headers.has("Authorization"), false);
   assert.equal(calls[0].init.cache, "no-store");
   assert.equal(calls[0].init.redirect, "manual");
+
+  for (const shortPath of [path.slice(4), "/original/1E5baAaEse26fej7uHcjOgEE2t2.jpg"]) {
+    responses.push(new Response(bytes, { headers: { "Content-Type": "image/jpeg" } }));
+    const short = await worker.fetch(request(shortPath));
+    assert.equal(short.status, 200);
+    assert.equal(short.headers.has("Location"), false);
+    assert.deepEqual(new Uint8Array(await short.arrayBuffer()), bytes);
+    assert.equal(calls.at(-1).url, "https://image.tmdb.org/t/p" + shortPath);
+  }
 
   responses.push(new Response(null, { headers: { "Content-Type": "image/jpeg" } }));
   const head = await worker.fetch(request(path, { method: "HEAD" }));
