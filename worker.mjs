@@ -28,16 +28,12 @@ async function upstream(request, target) {
     if (request.headers.has(name)) h.set(name, request.headers.get(name));
   }
   for (let attempt = 0; attempt < 2; attempt++) {
-    const controller = new AbortController();
-    // Bound the wait for headers, not the subsequent streaming of large originals.
-    const timer = setTimeout(() => controller.abort(), 4000);
     try {
       const response = await fetch(target, {
         method: request.method,
         headers: h,
         redirect: "manual",
         cache: "no-store",
-        signal: controller.signal,
       });
       if (attempt === 0 && [502, 503, 504].includes(response.status)) {
         await response.body?.cancel();
@@ -46,8 +42,6 @@ async function upstream(request, target) {
       return response;
     } catch (error) {
       if (attempt === 1) throw error;
-    } finally {
-      clearTimeout(timer);
     }
   }
 }

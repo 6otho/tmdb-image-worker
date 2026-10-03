@@ -116,3 +116,21 @@ test("returns an unfinished upstream stream without buffering the image", { time
   assert.deepEqual((await reader.read()).value, new Uint8Array([0xff, 0xd8]));
   await reader.cancel();
 });
+
+test("allows slow upstream headers without an artificial four-second abort", async (t) => {
+  let attempts = 0;
+  t.mock.method(globalThis, "fetch", (_url, init) => new Promise((resolve, reject) => {
+    attempts++;
+    const timer = setTimeout(() => resolve(new Response("image bytes", {
+      headers: { "Content-Type": "image/jpeg" },
+    })), 4200);
+    init.signal?.addEventListener("abort", () => {
+      clearTimeout(timer);
+      reject(new DOMException("Aborted", "AbortError"));
+    }, { once: true });
+  }));
+  const response = await worker.fetch(request());
+  assert.equal(response.status, 200);
+  assert.equal(await response.text(), "image bytes");
+  assert.equal(attempts, 1);
+});

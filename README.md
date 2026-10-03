@@ -95,7 +95,7 @@ npm run smoke -- https://images.example.com M9NWvGZViCg
 - 使用原生 Workers Cache 的分层缓存、请求合并和过期内容恢复机制，流式返回原始图片，不转码、不改变画质。
 - 成功图片：客户端缓存 30 天、边缘新鲜期 90 天；允许过期后 1 天后台刷新、上游错误时 7 天旧图兜底。TTL 不保证图片一直驻留缓存。
 - 404：边缘短缓存 60 秒、客户端不缓存；其他错误响应不存入缓存。过期旧图的实际使用仍取决于平台是否保有可用副本。
-- 回源等待响应头最多 4 秒，网络异常或 502/503/504 最多重试一次；这个超时不限制收到响应头之后的图片传输时间。
+- 不额外设置回源或整图传输的倒计时；按上游和平台的正常连接生命周期等待并流式返回。网络异常或 502/503/504 最多重试一次，不无限重试。
 - 保留 ETag、Last-Modified、Accept-Ranges，支持 HEAD、条件请求及平台对完整缓存图片的 Range 处理。
 - 固定上游 `image.tmdb.org` 和缩略图入口 `i.ytimg.com/vi/`，限制路径、尺寸、文件名和扩展名；不接受任意目标 URL，不转发 Cookie 或 Authorization。
 - query 参数通过 308 重定向移除。客户端直接使用无 query URL 可避免额外请求。
@@ -136,6 +136,12 @@ npm run smoke -- https://images.example.com M9NWvGZViCg
 图片响应带有 `Server-Timing: origin_headers;dur=毫秒数`，表示 Worker 从开始回源到收到上游响应头的耗时，包含可能的重试。它不包含客户端 DNS、连接、TLS 和图片正文传输；不能拿它当完整回源下载时间。缓存命中时，此值是当初填充缓存时保存的历史值。
 
 排查首次大图加载可结合 `curl -o /dev/null -D - -w '\nconnect=%{time_connect} tls=%{time_appconnect} first_byte=%{time_starttransfer} total=%{time_total}\n' 'https://你的域名/t/p/original/文件名.jpg'`。这些 curl 时间的单位是秒；首次请求和复测分别记录 `CF-Cache-Status`，不要仅凭一次 MISS 与一次 HIT 的总耗时就把线路波动归因于回源。
+
+需要为自己的网络比较入口时，见 [IP 优选与 Surge 配置教程](IP-PREFERENCE.md)。先看真实图片完整下载的成功率，再比较速度；保留 HTTPS 域名，不使用全网通用的固定 IP。
+
+**流式传输为什么仍会慢或超时？**
+
+流式转发避免等待整张图回源完成，但不会增加客户端线路的吞吐量。客户端仍有自己的超时策略：空闲超时指连续收不到新数据的等待时间，整图总时限则会连持续下载的大图一起切断。排查时应分别记录这两种设置，不要用测试脚本的短总时限推断 App 最终一定加载失败。Worker 不额外设置这两类倒计时，但无法取消平台或客户端的连接限制。
 
 **根路径正常，图片却返回 502？**
 
