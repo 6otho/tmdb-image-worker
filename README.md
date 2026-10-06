@@ -2,9 +2,9 @@
 
 自建 TMDB 图片代理，适用于 Cloudflare Workers 免费套餐。流式返回图片，保留原图画质。
 
-让 AI 代办：把下面这句话发给能操作终端的 AI，它会按 [Skill](skills/tmdb-image-setup/SKILL.md) 部署、验证，并检查服务端入口优选是否可行。
+让 AI 代办：把下面这句话发给能操作终端的 AI，它会按 [Skill](skills/tmdb-image-setup/SKILL.md) 部署、验证，并通过 DNS + Worker Route 应用优选 IP。
 
-> 读取 https://github.com/liixing/tmdb-image-worker/blob/main/skills/tmdb-image-setup/SKILL.md ，帮我部署图片 Worker，验证直连并检查能否在域名服务端应用优选入口；不要修改用户设备的网络配置，最后给我图片地址和实际完成状态。
+> 读取 https://github.com/liixing/tmdb-image-worker/blob/main/skills/tmdb-image-setup/SKILL.md ，帮我部署图片 Worker，在我的直连网络优选 IP，通过 DNS + Worker Route 在服务端生效，最后给我可直接填入客户端的图片地址和实测结果。
 
 ## 1. 部署
 
@@ -36,7 +36,7 @@ https://images.example.com/t/p/
 
 ## 3. 优选 IP
 
-以下命令只比较候选入口，**不会让公开域名自动采用该 IP**。普通 Worker 自定义域名不能直接指定入口 IP；服务端生效需要另行验证域名接入方案。测速时完整下载成功率优先，再比较速度。
+分两步：**测出合适的 IP，再写入公开 DNS，并用 Worker Route 接管请求**。用户设备只需填写图片域名。
 
 先查询候选 IP：
 
@@ -60,5 +60,19 @@ curl --noproxy '*' --resolve "${image_host}:443:${image_ip}" \
 - 记录 `CF-Cache-Status`，首次请求和缓存命中分开比较。选择成功率高、整图耗时低的 IP，不只看 Ping。
 - 使用实际直连网络；`--noproxy` 不会绕过 VPN。`198.18.x.x` 等虚拟地址不能作为公网候选 IP。
 - 换网络后重测，没有适合所有地区的固定最快 IP。
+
+测好后，在 Cloudflare 配置：
+
+1. 添加 **Route** `images.example.com/*`，选择你的图片 Worker。
+2. 如果同名域名已绑定 **Custom Domain**，先移除这个绑定，再在 DNS 添加 **A** 记录：名称 `images`、内容为实测胜出的 Cloudflare IP、代理状态 **仅 DNS（灰云）**。
+3. 将 `wrangler.jsonc` 中该域名的 `custom_domain` 配置替换为下面的路由，防止下次部署改回去：
+
+   ```jsonc
+   "routes": [{ "pattern": "images.example.com/*", "zone_name": "example.com" }]
+   ```
+
+4. 查询公开 DNS，确认返回选定 IP；不用 `--resolve`，正常访问域名并完整下载大图验证。
+
+已有服务先在空闲子域名验证再切换。该方式已在本项目实测通过，无需 SaaS；官方路由文档通常要求代理记录，因此其他账号也必须实际验证 HTTPS 和图片响应。失败时恢复原 Custom Domain 绑定。单个 IP 的速度因运营商、地区和时段而异。
 
 [MIT License](LICENSE)

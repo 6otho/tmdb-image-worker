@@ -26,11 +26,13 @@ description: 自动部署或更新自建 TMDB Image Worker，验证直连图片�
 
 配置语义不明确时查 [Cloudflare Custom Domains](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/) 和 [Workers Cache](https://developers.cloudflare.com/workers/cache/configuration/)，不猜测 API 参数。
 
-## 先确认服务端能否应用
+## 服务端接入方案
 
-测速前确认接入架构。普通 Worker Custom Domain 由 Cloudflare 管理 DNS；橙云 A/CNAME 返回 Cloudflare 分配的入口，填写候选 IP 不等于固定用户入口。Worker 代码执行时客户端已经连上边缘，修改回源 IP 也不影响这段连接。见 [Custom Domains](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/) 和 [DNS proxy status](https://developers.cloudflare.com/dns/proxy-status/)。
+优先使用 **DNS-only A 记录 → 优选 Cloudflare IP + Worker Route `图片域名/*`**。不需要 SaaS，不需要终端网络配置，也不修改 Worker 回源逻辑。2026-10-06 已在本项目独立子域名及正式域名验证：公开 DNS、正常 HTTPS、31 张 App 图片完整解码均通过；验证时没有 `--resolve` 或本地 IP 映射。
 
-现有架构没有可控的公开入口时，明确这个限制，不能承诺写一段 Worker 代码即可完成优选。替代接入架构需先核实账户支持、费用、证书和路由；例如 Cloudflare for SaaS 支持 [Worker 作为入口后的处理服务](https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/start/advanced-settings/worker-as-origin/)，但不意味着免费支持任意 IP 的 A 记录接入，需核对 [SaaS DNS 要求](https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/start/getting-started/)。不能把未验证的架构写成已可用，也不能擅自升级套餐。
+这是实测方案，不是 Cloudflare 对灰云路由的兼容性承诺。[官方 Routes 文档](https://developers.cloudflare.com/workers/configuration/routing/routes/)通常要求 proxied DNS；因此在每个用户账号先用独立子域名验证。若出现证书、1000/1016 或路由错误，检查实际绑定与 DNS，不能仅凭文档或示例宣称成功。
+
+Custom Domain 的托管 DNS 不能直接编辑；橙云 A/CNAME 也不会将用户填写的 IP 原样公开。优选要迁移到普通 Route，不能只修改 Custom Domain 的底层记录。Worker 执行时客户端已经连上边缘，改回源 IP 不会优选客户端入口。
 
 ## 在用户网络优选
 
@@ -61,9 +63,18 @@ description: 自动部署或更新自建 TMDB Image Worker，验证直连图片�
 
 `curl --resolve` 只用于测候选入口，不是部署结果。优选需要通过受支持且已验证的公开域名入口配置生效；不能交付 IP 字面量 URL、所谓优选 query 参数或绕过证书校验的链接。
 
-只有确认接入架构满足上述条件后，才在用户授权范围内配置域名。先备份相关 DNS、证书绑定和 Worker 路由，在独立测试子域名验证，避免直接破坏正在使用的图片地址。没有可控的服务端入口就报告“部署可用、服务端优选未完成”和具体缺失条件，不退回本机或路由器映射冒充完成。
+按下面步骤落实，不停留在提供候选 IP：
 
-验证时不使用 `--resolve`、hosts 或代理软件的域名覆盖：先查公开 DNS 的实际结果，再用正常域名请求验证证书、Worker 图片响应、完整解码及缓存行为。在用户网络复测速度与成功率；具备其他设备或网络时也复验并分别报告。确认所有步骤通过后才切换正式地址，DNS TTL 传播期间保留旧入口。失败则只回滚本次更改的资源，不覆盖无关配置。不能仅凭本机覆盖后测速很快就宣称服务端优选成功。
+1. 保存目标域名的 DNS、Custom Domain 绑定和路由。先创建空闲的单层测试子域名，确认域名所在 zone 正常且边缘证书覆盖该名称；保留无关服务。
+2. 添加 DNS **A** 记录，内容为实测胜出的 Cloudflare IPv4，`proxied: false`（仅 DNS），TTL 300 秒；添加普通 Worker Route `测试域名/*` 指向已有图片 Worker。无需新建 Worker 或改动图片代码。
+3. 用公开 DNS/DoH 验证实际 A/AAAA，排除旧 AAAA 绕过所选 IPv4；正常 HTTPS 请求根路径及真实大图，验证证书、HTTP 200、完整解码和缓存。禁止用 `--resolve`、hosts 或代理软件 IP 覆盖作为该步骤的验收。
+4. 测试通过后，添加正式 Route `图片域名/*`；若已有同名 Custom Domain，移除该绑定后立即创建正式灰云 A 记录。只操作本次目标域名。更新部署配置，将该域名的 `custom_domain: true` 替换为 `{ "pattern": "图片域名/*", "zone_name": "所属根域名" }`，保留其他 routes。
+5. 在用户网络用正常域名复测，确认公开解析、实际远端和完整图片成功率，覆盖海报、原图、PNG 和预告片。去除本任务先前添加的本机 IP 覆盖后再验收；已有代理环境仅用于确认请求确实直连，不作为用户使用要求。
+6. 清理测试域名和临时 Route。若正式迁移失败，移除本次冲突的灰云记录并恢复原 Custom Domain 绑定及配置；没有旧绑定时恢复备份。报告验证失败原因，不擅自改用 SaaS 或付费产品。
+
+复用已有 Cloudflare 登录权限：Wrangler OAuth 通常可操作 Worker 路由但未必有 DNS 写权限。DNS API 无权限时使用已登录控制台操作 DNS；不要把权限错误解释成方案不可用，不必为此创建长期令牌。API 参数不明确时核查官方接口；DELETE 可能成功返回空响应体，读取资源状态确认，不能因 JSON 解析失败重复执行。
+
+不能确认公开域名已生效时，报告“部署可用、服务端优选未完成”及具体原因。不能仅凭本机覆盖后测速快就宣称完成，也不能承诺选中的 IP 对所有用户最快。
 
 ## 交付
 
